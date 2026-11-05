@@ -1,7 +1,7 @@
-// copyright ME
-
-
 package frc.robot.subsystems;
+ 
+import com.studica.frc.AHRS;
+import com.studica.frc.AHRS.NavXComType;
 
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -10,16 +10,12 @@ import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.ConfigConsts;
 import frc.robot.Constants.DriveConsts;
 
-import com.studica.frc.AHRS;
-import com.studica.frc.AHRS.NavXComType;
-
-
-public class SwerveDrive extends SubsystemBase {
+public class SwerveDrive extends SubsystemBase
+{
     
     public double kP = 5.0;
 	public PIDController turn_pid = new PIDController(2.8, 5.0, 0);
@@ -77,93 +73,87 @@ public class SwerveDrive extends SubsystemBase {
     public SwerveModulePosition[] getModulePositions() {
 		// TODO_OLD: The ordering of the modules here is guessed based on how we need to pass
 		// swerve module states in `setModules()`. Confirm that this is correct.
-		//
-		// 3/22/2026: I don't think we have the need or time to do anything meaningful
-		// odometry, which is the only user of this function.
-		SwerveModulePosition[] modulePositions = {
+
+		return new SwerveModulePosition[]
+		{
 			rfModule.getModulePosition(),
 			lfModule.getModulePosition(),
 			rbModule.getModulePosition(),
 			lbModule.getModulePosition()
 		};
-		return modulePositions;
-	}
-
-	public void resetGyro() {
-		// Calibrate the the NavXMXP in a separate thread, so that it doesn't block other initialization.
-		new Thread(() -> {
-			try {
-				Thread.sleep(1000);
-				navxMxp.reset();
-
-				// initialize after gyro is reset, because it needs the gyro position for initialization
-				/*
-				odometry = new SwerveDriveOdometry(
-					DriveConsts.driveKinematics,
-					navxMxp.getRotation2d(),
-					getModulePositions());
-				*/
-
-			} catch (Exception e) {
-			}
-		}).start();
 	}
 
     public SwerveDrive() 
     {
-        resetGyro();
-		turn_pid.enableContinuousInput(-Math.PI, Math.PI);
-		turn_pid.setTolerance(0.035);
-		turn_pid.setIZone(DegToRad(15));
+        ResetGyro();
 
-		turn_pid_for_moving.enableContinuousInput(-Math.PI, Math.PI);
-		turn_pid_for_moving.setTolerance(0.035);
-		turn_pid_for_moving.setIZone(DegToRad(15));
-
-		turn_pid_d_pad.enableContinuousInput(-Math.PI, Math.PI);
-		turn_pid_d_pad.setTolerance(2);
-		turn_pid_d_pad.setIZone(DegToRad(15));
+		UpdatePIDController(turn_pid, 0.035);
+		UpdatePIDController(turn_pid_for_moving, 0.035);
+		UpdatePIDController(turn_pid_d_pad, 2);
 
 		move_pid.setIZone(0.2);
     };
 
-    public void setKP(double newKP) {
+	public void ResetGyro()
+	{
+		// Calibrate the the NavXMXP in a separate thread, so that it doesn't block other initialization.
+		new Thread(() ->  {
+			try 
+			{
+				Thread.sleep(1000);
+				navxMxp.reset();
+
+				//initialize after gyro is reset, because it needs the gyro position for initialization
+				// odometry = new SwerveDriveOdometry(DriveConsts.driveKinematics, navxMxp.getRotation2d(), getModulePositions());
+			} catch (Exception e) {}
+		}).start();
+	}
+
+	public void UpdatePIDController(PIDController pid, double errorTolerance)
+	{
+		pid.enableContinuousInput(-Math.PI, Math.PI);
+		pid.setTolerance(errorTolerance);
+		pid.setIZone(DegToRad(15));
+	};
+
+    public void SetKP(double newKP)
+	{
 		kP = newKP;
 		move_pid.setI(kP);
 	}
 
-	public void setModules(double xSpeed, double ySpeed, double turnSpeed) {
-		// Hysteresis code. Doesn't really improve the feel of driving, so commented out.
-		// xSpeed = xHysteresis.nextValue(xSpeed);
-		// ySpeed = yHysteresis.nextValue(ySpeed);
-		// turnSpeed = rotHysteresis.nextValue(turnSpeed);
+	public void SetModules(double xSpeed, double ySpeed, double turnSpeed)
+	{
+		/* Hysteresis code. Doesn't really improve the feel of driving, so commented out.
+		   xSpeed = xHysteresis.nextValue(xSpeed);
+		   ySpeed = yHysteresis.nextValue(ySpeed);
+		   turnSpeed = rotHysteresis.nextValue(turnSpeed); */
 
 		// NOTE: The angle that "getRotation2d()" returns is CCW positive.
-		ChassisSpeeds chassisSpeeds = ChassisSpeeds.fromFieldRelativeSpeeds(
-				xSpeed, ySpeed, turnSpeed, navxMxp.getRotation2d());
+		Rotation2d gyroAngle = navxMxp.getRotation2d();
+		ChassisSpeeds chassisSpeeds = ChassisSpeeds.fromFieldRelativeSpeeds(xSpeed, ySpeed, turnSpeed, gyroAngle);
 
-		SmartDashboard.putNumber( "rotation2d deg",  navxMxp.getRotation2d().getDegrees() );
+		SmartDashboard.putNumber( "Rotation2D Degree", gyroAngle.getDegrees());
 
 		SwerveModuleState[] moduleStates = DriveConsts.driveKinematics.toSwerveModuleStates(chassisSpeeds);
-		SwerveDriveKinematics.desaturateWheelSpeeds(
-				moduleStates, DriveConsts.maxMetersPerSecToMotorSpeed);
+		SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, DriveConsts.maxMetersPerSecToMotorSpeed);
 
 		boolean ignoreLowSpeed = true;
-		lfModule.setDesiredState(moduleStates[1], ignoreLowSpeed);
 		rfModule.setDesiredState(moduleStates[0], ignoreLowSpeed);
-		lbModule.setDesiredState(moduleStates[3], ignoreLowSpeed);
+		lfModule.setDesiredState(moduleStates[1], ignoreLowSpeed);
 		rbModule.setDesiredState(moduleStates[2], ignoreLowSpeed);
+		lbModule.setDesiredState(moduleStates[3], ignoreLowSpeed);
 
 		// odometry.update(navxMxp.getRotation2d(), getModulePositions());
 	}
 
-	public void setWheelsToAngle(double angleRadians) {
+	public void SetWheelsToAngle(double angleRadians)
+	{
 		double speed = 0;
 		Rotation2d rot2d = new Rotation2d(angleRadians);
 		SwerveModuleState swerveModuleState = new SwerveModuleState(speed, rot2d);
 
 		boolean ignoreLowSpeed = false;
-
 		lfModule.setDesiredState(swerveModuleState, ignoreLowSpeed);
 		rfModule.setDesiredState(swerveModuleState, ignoreLowSpeed);
 		lbModule.setDesiredState(swerveModuleState, ignoreLowSpeed);
@@ -172,7 +162,8 @@ public class SwerveDrive extends SubsystemBase {
 		// odometry.update(navxMxp.getRotation2d(), getModulePositions());
 	}
 
-	public void stopModules() {
+	public void StopModules()
+	{
 		lfModule.stop();
 		rfModule.stop();
 		lbModule.stop();
@@ -181,27 +172,26 @@ public class SwerveDrive extends SubsystemBase {
 		// odometry.update(navxMxp.getRotation2d(), getModulePositions());
 	}
 
-	public boolean TurnToDegree(double degree, double errorTolerance) {
-		double current_degree = -navxMxp.getRotation2d().getRadians();
+	public boolean TurnToDegree(double degree, double errorTolerance)
+	{
+		if (errorTolerance > 0) turn_pid.setTolerance(Math.toRadians(errorTolerance));
 
-		// Subtract 180 to put the 0-360 degree input in the -180 to 180 range. This is to match the gyro's radian reading which spans from -pi to pi.
-		double result = turn_pid.calculate(current_degree, DegToRad(degree - 180));
-		SmartDashboard.putNumber("pid output", result);
-		double error = turn_pid.getError();
-		SmartDashboard.putNumber("pid error", error);
-		if(!turn_pid.atSetpoint()){
-			setModules(0.0, 0.0, result);
-			return(false);
+		double currentRadians = -navxMxp.getRotation2d().getRadians();
+		double output = turn_pid.calculate(currentRadians, DegToRad(degree - 180));
+
+		SmartDashboard.putNumber("PID Output", output);
+		SmartDashboard.putNumber("PID Error", turn_pid.getError());
+
+		if (turn_pid.atSetpoint())
+		{
+			SetModules(0.0, 0.0, 0.0);
+			return true;
 		}
-		else{
-			setModules(0.0, 0.0, 0.0);
-			return(true);
-		}
+
+		SetModules(0.0, 0.0, output);
+		return false;
 	}
 
-    // ------- radian functions -------- //
-	public double DegToRad(double deg){
-		return deg * (Math.PI/180);
-	}
-
+    // ------- Radian Functions -------- //
+	public double DegToRad(double deg) { return deg * (Math.PI/180); }
 }
