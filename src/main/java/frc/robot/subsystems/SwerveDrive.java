@@ -4,10 +4,16 @@
 package frc.robot.subsystems;
 
 import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
+import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.ConfigConsts;
+import frc.robot.Constants.DriveConsts;
 
 import com.studica.frc.AHRS;
 import com.studica.frc.AHRS.NavXComType;
@@ -120,6 +126,78 @@ public class SwerveDrive extends SubsystemBase {
 
 		move_pid.setIZone(0.2);
     };
+
+    public void setKP(double newKP) {
+		kP = newKP;
+		move_pid.setI(kP);
+	}
+
+	public void setModules(double xSpeed, double ySpeed, double turnSpeed) {
+		// Hysteresis code. Doesn't really improve the feel of driving, so commented out.
+		// xSpeed = xHysteresis.nextValue(xSpeed);
+		// ySpeed = yHysteresis.nextValue(ySpeed);
+		// turnSpeed = rotHysteresis.nextValue(turnSpeed);
+
+		// NOTE: The angle that "getRotation2d()" returns is CCW positive.
+		ChassisSpeeds chassisSpeeds = ChassisSpeeds.fromFieldRelativeSpeeds(
+				xSpeed, ySpeed, turnSpeed, navxMxp.getRotation2d());
+
+		SmartDashboard.putNumber( "rotation2d deg",  navxMxp.getRotation2d().getDegrees() );
+
+		SwerveModuleState[] moduleStates = DriveConsts.driveKinematics.toSwerveModuleStates(chassisSpeeds);
+		SwerveDriveKinematics.desaturateWheelSpeeds(
+				moduleStates, DriveConsts.maxMetersPerSecToMotorSpeed);
+
+		boolean ignoreLowSpeed = true;
+		lfModule.setDesiredState(moduleStates[1], ignoreLowSpeed);
+		rfModule.setDesiredState(moduleStates[0], ignoreLowSpeed);
+		lbModule.setDesiredState(moduleStates[3], ignoreLowSpeed);
+		rbModule.setDesiredState(moduleStates[2], ignoreLowSpeed);
+
+		// odometry.update(navxMxp.getRotation2d(), getModulePositions());
+	}
+
+	public void setWheelsToAngle(double angleRadians) {
+		double speed = 0;
+		Rotation2d rot2d = new Rotation2d(angleRadians);
+		SwerveModuleState swerveModuleState = new SwerveModuleState(speed, rot2d);
+
+		boolean ignoreLowSpeed = false;
+
+		lfModule.setDesiredState(swerveModuleState, ignoreLowSpeed);
+		rfModule.setDesiredState(swerveModuleState, ignoreLowSpeed);
+		lbModule.setDesiredState(swerveModuleState, ignoreLowSpeed);
+		rbModule.setDesiredState(swerveModuleState, ignoreLowSpeed);
+
+		// odometry.update(navxMxp.getRotation2d(), getModulePositions());
+	}
+
+	public void stopModules() {
+		lfModule.stop();
+		rfModule.stop();
+		lbModule.stop();
+		rbModule.stop();
+
+		// odometry.update(navxMxp.getRotation2d(), getModulePositions());
+	}
+
+	public boolean turn_to_degree(double degree, double errorTolerance) {
+		double current_degree = -navxMxp.getRotation2d().getRadians();
+
+		// Subtract 180 to put the 0-360 degree input in the -180 to 180 range. This is to match the gyro's radian reading which spans from -pi to pi.
+		double result = turn_pid.calculate(current_degree, DegToRad(degree - 180));
+		SmartDashboard.putNumber("pid output", result);
+		double error = turn_pid.getError();
+		SmartDashboard.putNumber("pid error", error);
+		if(!turn_pid.atSetpoint()){
+			setModules(0.0, 0.0, result);
+			return(false);
+		}
+		else{
+			setModules(0.0, 0.0, 0.0);
+			return(true);
+		}
+	}
 
     // ------- radian functions -------- //
 	public double DegToRad(double deg){
