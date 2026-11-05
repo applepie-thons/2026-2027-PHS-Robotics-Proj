@@ -181,7 +181,7 @@ public class SwerveDrive extends SubsystemBase {
 		// odometry.update(navxMxp.getRotation2d(), getModulePositions());
 	}
 
-	public boolean turn_to_degree(double degree, double errorTolerance) {
+	public boolean TurnToDegree(double degree, double errorTolerance) {
 		double current_degree = -navxMxp.getRotation2d().getRadians();
 
 		// Subtract 180 to put the 0-360 degree input in the -180 to 180 range. This is to match the gyro's radian reading which spans from -pi to pi.
