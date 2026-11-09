@@ -87,9 +87,9 @@ public class SwerveDrive extends SubsystemBase
     {
         ResetGyro();
 
-		UpdatePIDController(turn_pid, 0.035);
-		UpdatePIDController(turn_pid_for_moving, 0.035);
-		UpdatePIDController(turn_pid_d_pad, 2);
+		UpdateTurnPIDController(turn_pid, 0.035);
+		UpdateTurnPIDController(turn_pid_for_moving, 0.035);
+		UpdateTurnPIDController(turn_pid_d_pad, 2);
 
 		move_pid.setIZone(0.2);
     };
@@ -109,7 +109,7 @@ public class SwerveDrive extends SubsystemBase
 		}).start();
 	}
 
-	public void UpdatePIDController(PIDController pid, double errorTolerance)
+	public void UpdateTurnPIDController(PIDController pid, double errorTolerance)
 	{
 		pid.enableContinuousInput(-Math.PI, Math.PI);
 		pid.setTolerance(errorTolerance);
